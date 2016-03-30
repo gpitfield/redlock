@@ -1,10 +1,11 @@
 /*
-Package redlock implements a simple mutex on a single redis instance, using a connection pool to improve
+Package redlock implements a simple mutex on a single redis instance, using a connection pool for
 performance and efficiency.
 
 Note that this design does not guarantee correctness. It is lightweight and appropriate for use cases where two
 clients holding the same lock simultaneously is not a critical issue. It is possible, in cases of processes running
-overlong, or the redis node's failure, for more than one process to hold a given lock simultaneously.
+overlong, or the redis node's failure, for more than one process to hold a given lock simultaneously. This should
+happen only very rarely, but it can happen.
 */
 package redlock
 
