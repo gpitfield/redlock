@@ -21,7 +21,7 @@ func GetTestConfig(t *testing.T) *RedisConfig {
 	}
 }
 
-func channelLock(key string, timeout int, id int, c chan bool, t *testing.T) {
+func channelLock(key string, timeout time.Duration, id int, c chan bool, t *testing.T) {
 	testRl := New(GetTestConfig(t))
 	defer testRl.Close()
 	lock, err := testRl.Lock(key, timeout)
@@ -35,7 +35,7 @@ func TestLock(t *testing.T) {
 	var (
 		lock        bool
 		err         error
-		testTimeout = 50 // milliseconds
+		testTimeout = time.Duration(50) * time.Millisecond
 		testKey     = "test"
 	)
 
@@ -50,7 +50,7 @@ func TestLock(t *testing.T) {
 	if !lock {
 		t.Fatalf("Failed to acquire lock.")
 	}
-	if time.Since(start) > time.Duration(testTimeout)*time.Millisecond {
+	if time.Since(start) > testTimeout {
 		t.Fatalf("Aborting tests due to slow redis test instance")
 	}
 	lock, err = rl.Lock(testKey, testTimeout)
@@ -71,8 +71,8 @@ func TestLock(t *testing.T) {
 	if !lock {
 		t.Fatalf("Lock couldn't be acquired after being released.")
 	}
-	for time.Since(start) < time.Duration(testTimeout)*time.Millisecond {
-		time.Sleep(time.Duration(testTimeout)*time.Millisecond - time.Since(start))
+	for time.Since(start) < testTimeout {
+		time.Sleep(testTimeout - time.Since(start))
 	}
 	// set up a contention using goroutines
 	c := make(chan bool)

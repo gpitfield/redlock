@@ -2,6 +2,7 @@ package redlock
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -16,14 +17,13 @@ func prefixedKey(key string, prefix string) string {
 
 // Lock tries to acquire a lock on the given connection for the key via SETNX as discussed at http://redis.io/commands/setnx, returning true if successful.
 // Timeout is given in milliseconds.
-func (rl *Redlock) Lock(key string, timeout int) (acquired bool, err error) {
+func (rl *Redlock) Lock(key string, timeout time.Duration) (acquired bool, err error) {
 	conn, err := rl.conn()
 	if err != nil {
 		return false, err
 	}
 	lockKey := prefixedKey(rl.conf.KeyPrefix, key)
-	timeoutDuration := time.Duration(timeout) * time.Millisecond
-	acqValue, err := redis.Int(conn.Do("SETNX", lockKey, time.Now().Add(timeoutDuration).UnixNano()))
+	acqValue, err := redis.Int(conn.Do("SETNX", lockKey, time.Now().Add(timeout).UnixNano()))
 	if err != nil {
 		return
 	}
@@ -37,7 +37,7 @@ func (rl *Redlock) Lock(key string, timeout int) (acquired bool, err error) {
 		if err != nil {
 			acquired = false
 		} else if expireTime.Before(time.Now()) { // try to reset the time
-			newExpires := time.Now().Add(timeoutDuration).UnixNano()
+			newExpires := time.Now().Add(timeout).UnixNano()
 			var newTime int64
 			newTime, err = redis.Int64(conn.Do("GETSET", lockKey, newExpires))
 			if err != nil {
@@ -49,7 +49,22 @@ func (rl *Redlock) Lock(key string, timeout int) (acquired bool, err error) {
 	}
 
 	if acquired {
-		_, err = redis.Int(conn.Do("EXPIRE", lockKey, timeout))
+		expire := int(math.Ceil(timeout.Seconds()))
+		_, err = redis.Int(conn.Do("EXPIRE", lockKey, expire))
+	}
+	return
+}
+
+// WaitLock locks the given key for timeout duration, retrying the lock until it succeeds
+// waiting retryInterval duration between retries.
+func (rl *Redlock) WaitLock(key string, timeout time.Duration, retryInterval time.Duration) (acquired bool, err error) {
+	acquired, err = rl.Lock(key, timeout)
+	for !acquired {
+		if err != nil {
+			return false, err
+		}
+		time.Sleep(retryInterval)
+		acquired, err = rl.Lock(key, timeout)
 	}
 	return
 }
