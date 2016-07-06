@@ -78,3 +78,26 @@ func (rl *Redlock) Unlock(key string) (err error) {
 	_, err = conn.Do("DEL", prefixedKey(rl.conf.KeyPrefix, key))
 	return err
 }
+
+// Extend the time on a given lock - only to be called by lock's current holder or delegate
+func (rl *Redlock) Renew(key string, timeout time.Duration) (renewed bool, err error) {
+	conn, err := rl.conn()
+	if err != nil {
+		return false, err
+	}
+
+	lockKey := prefixedKey(rl.conf.KeyPrefix, key)
+	newExpires := time.Now().Add(timeout).UnixNano()
+	_, err = redis.Int64(conn.Do("GETSET", lockKey, newExpires))
+	if err != nil {
+		return
+	} else {
+		renewed = true
+	}
+
+	if renewed {
+		expire := int(math.Ceil(timeout.Seconds()))
+		_, err = redis.Int(conn.Do("EXPIRE", lockKey, expire))
+	}
+	return
+}

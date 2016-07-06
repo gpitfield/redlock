@@ -34,6 +34,7 @@ func channelLock(key string, timeout time.Duration, id int, c chan bool, t *test
 func TestLock(t *testing.T) {
 	var (
 		lock        bool
+		renewed     bool
 		err         error
 		testTimeout = time.Duration(50) * time.Millisecond
 		testKey     = "test"
@@ -50,6 +51,15 @@ func TestLock(t *testing.T) {
 	if !lock {
 		t.Fatalf("Failed to acquire lock.")
 	}
+
+	renewed, err = rl.Renew(testKey, testTimeout)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	if !renewed {
+		t.Fatalf("Failed to renew lock.")
+	}
+
 	if time.Since(start) > testTimeout {
 		t.Fatalf("Aborting tests due to slow redis test instance")
 	}
