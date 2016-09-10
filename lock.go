@@ -22,6 +22,7 @@ func (rl *Redlock) Lock(key string, timeout time.Duration) (acquired bool, err e
 	if err != nil {
 		return false, err
 	}
+	defer conn.Close()
 	lockKey := prefixedKey(rl.conf.KeyPrefix, key)
 	acqValue, err := redis.Int(conn.Do("SETNX", lockKey, time.Now().Add(timeout).UnixNano()))
 	if err != nil {
@@ -72,6 +73,7 @@ func (rl *Redlock) WaitLock(key string, timeout time.Duration, retryInterval tim
 // Unlock deletes the given lock key, releasing the lock.
 func (rl *Redlock) Unlock(key string) (err error) {
 	conn, err := rl.conn()
+	defer conn.Close()
 	if err != nil {
 		return
 	}
@@ -82,6 +84,7 @@ func (rl *Redlock) Unlock(key string) (err error) {
 // Extend the time on a given lock - only to be called by lock's current holder or delegate
 func (rl *Redlock) Renew(key string, timeout time.Duration) (renewed bool, err error) {
 	conn, err := rl.conn()
+	defer conn.Close()
 	if err != nil {
 		return false, err
 	}
